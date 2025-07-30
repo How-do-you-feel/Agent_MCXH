@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision Agent WebUI</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="min-h-screen">
+        <!-- 头部 -->
+        <header class="bg-white shadow">
+            <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                <h1 class="text-3xl font-bold text-gray-900">Vision Agent WebUI</h1>
+                <p class="mt-1 text-sm text-gray-500">与本地LLM交互并调用视觉工具</p>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <!-- 初始化区域 -->
+            <div class="mb-8 bg-white shadow rounded-lg p-6" v-if="!initialized">
+                <h2 class="text-xl font-semibold mb-4">初始化Vision Agent</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">模型路径</label>
+                        <input v-model="initConfig.modelPath" type="text" 
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                               placeholder="/home/ps/Qwen2.5-3B">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Host</label>
+                        <input v-model="initConfig.host" type="text" 
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                               placeholder="127.0.0.1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Port</label>
+                        <input v-model="initConfig.port" type="number" 
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                               placeholder="8001">
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button @click="initializeAgent" 
+                            :disabled="initializing"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <span v-if="initializing">初始化中...</span>
+                        <span v-else>初始化Agent</span>
+                    </button>
+                </div>
+                <div v-if="initError" class="mt-4 text-red-600">
+                    {{ initError }}
+                </div>
+            </div>
+
+            <!-- 主要功能区域 -->
+            <div v-else>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- 左侧：工具选择和图像上传 -->
+                    <div class="bg-white shadow rounded-lg p-6">
+                        <h2 class="text-xl font-semibold mb-4">工具配置</h2>
+                        
+                        <!-- 工具选择 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700">选择工具</label>
+                            <select v-model="selectedTool" 
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                                <option value="auto">自动选择工具</option>
+                                <option v-for="tool in tools" :key="tool.name" :value="tool.name">
+                                    {{ tool.name }} - {{ tool.description }}
+                                </option>
+                            </select>
+                        </div>
+                        
+                        <!-- 图像上传 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700">上传图像</label>
+                            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                                <div class="space-y-1 text-center">
+                                    <div v-if="!uploadedImage" class="flex text-sm text-gray-600">
+                                        <label class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500">
+                                            <span>上传图像</span>
+                                            <input @change="handleImageUpload" type="file" accept="image/*" class="sr-only">
+                                        </label>
+                                        <p class="pl-1">或拖拽到此处</p>
+                                    </div>
+                                    <div v-else class="text-sm text-gray-500">
+                                        <p>{{ uploadedImage.name }}</p>
+                                        <button @click="removeImage" class="text-indigo-600 hover:text-indigo-500">
+                                            移除图像
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 提示输入 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700">输入提示</label>
+                            <textarea v-model="prompt" rows="3"
+                                      class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                      placeholder="请输入您的指令，例如：检测图像中的所有对象"></textarea>
+                        </div>
+                        
+                        <!-- 执行按钮 -->
+                        <div>
+                            <button @click="processImage" 
+                                    :disabled="processing || !prompt || !uploadedImage"
+                                    class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
+                                <span v-if="processing" class="mr-2">处理中...</span>
+                                <span v-else>执行工具</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 右侧：结果显示 -->
+                    <div class="bg-white shadow rounded-lg p-6">
+                        <h2 class="text-xl font-semibold mb-4">结果展示</h2>
+                        
+                        <!-- 显示上传的图像 -->
+                        <div v-if="uploadedImage" class="mb-6">
+                            <h3 class="text-lg font-medium mb-2">上传的图像</h3>
+                            <img :src="'file://' + uploadedImage.path" alt="Uploaded image" 
+                                 class="max-w-full h-auto rounded-lg shadow">
+                        </div>
+                        
+                        <!-- 显示处理结果 -->
+                        <div v-if="result">
+                            <h3 class="text-lg font-medium mb-2">处理结果</h3>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <pre class="whitespace-pre-wrap break-words">{{ result }}</pre>
+                            </div>
+                        </div>
+                        
+                        <!-- 显示加载状态 -->
+                        <div v-if="processing" class="text-center py-8">
+                            <div class="loading-spinner"></div>
+                            <p class="mt-2 text-gray-500">正在处理中，请稍候...</p>
+                        </div>
+                        
+                        <!-- 显示错误信息 -->
+                        <div v-if="error" class="mt-4 text-red-600">
+                            {{ error }}
+                        </div>
+                        
+                        <!-- 初始状态提示 -->
+                        <div v-if="!processing && !result && !error" class="text-center py-8 text-gray-500">
+                            <p>上传图像并输入提示后，点击"执行工具"按钮查看结果</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+        
+        createApp({
+            data() {
+                return {
+                    // 初始化相关
+                    initialized: false,
+                    initializing: false,
+                    initConfig: {
+                        modelPath: '/home/ps/Qwen2.5-3B',
+                        host: '127.0.0.1',
+                        port: 8001
+                    },
+                    initError: '',
+                    
+                    // 工具相关
+                    tools: [],
+                    selectedTool: 'auto',
+                    
+                    // 图像相关
+                    uploadedImage: null,
+                    
+                    // 处理相关
+                    prompt: '',
+                    processing: false,
+                    result: '',
+                    error: ''
+                }
+            },
+            mounted() {
+                // 页面加载时尝试获取工具列表
+                this.fetchTools();
+            },
+            methods: {
+                async initializeAgent() {
+                    this.initializing = true;
+                    this.initError = '';
+                    
+                    try {
+                        const response = await fetch('/api/init', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                model_path: this.initConfig.modelPath,
+                                host: this.initConfig.host,
+                                port: this.initConfig.port
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.status === 'success') {
+                            this.initialized = true;
+                        } else {
+                            this.initError = data.message;
+                        }
+                    } catch (error) {
+                        this.initError = '初始化失败: ' + error.message;
+                    } finally {
+                        this.initializing = false;
+                    }
+                },
+                
+                async fetchTools() {
+                    try {
+                        const response = await fetch('/api/tools');
+                        const data = await response.json();
+                        
+                        if (data.status === 'success') {
+                            this.tools = data.tools;
+                        }
+                    } catch (error) {
+                        console.error('获取工具列表失败:', error);
+                    }
+                },
+                
+                async handleImageUpload(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    const formData = new FormData();
+                    formData.append('image', file);
+                    
+                    try {
+                        const response = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.status === 'success') {
+                            this.uploadedImage = {
+                                name: file.name,
+                                path: data.filepath
+                            };
+                        } else {
+                            alert('上传失败: ' + data.message);
+                        }
+                    } catch (error) {
+                        alert('上传失败: ' + error.message);
+                    }
+                },
+                
+                removeImage() {
+                    this.uploadedImage = null;
+                },
+                
+                async processImage() {
+                    if (!this.prompt || !this.uploadedImage) {
+                        this.error = '请输入提示并上传图像';
+                        return;
+                    }
+                    
+                    this.processing = true;
+                    this.result = '';
+                    this.error = '';
+                    
+                    try {
+                        const response = await fetch('/api/process', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                prompt: this.prompt,
+                                image_path: this.uploadedImage.path,
+                                tool_name: this.selectedTool,
+                                tool_params: {
+                                    device: 'cpu'  // 默认使用CPU
+                                }
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.status === 'success') {
+                            this.result = data.result;
+                        } else {
+                            this.error = data.message;
+                        }
+                    } catch (error) {
+                        this.error = '处理失败: ' + error.message;
+                    } finally {
+                        this.processing = false;
+                    }
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
