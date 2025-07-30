@@ -1,48 +1,25 @@
-import importlib
-import inspect
-from typing import Optional, List, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any
+from ..tools.registry import load_tool, list_tools as list_registered_tools
 
-from ..tools import BaseTool
+def load_tool(tool_type: str, **kwargs) -> Any:
+    return load_tool(tool_type, **kwargs)
 
-NAMES2TOOLS = {}
-
-def extract_all_tools(module):
-    if isinstance(module, str):
-        module = importlib.import_module(module)
-
-    tools = {}
-    for k, v in module.__dict__.items():
-        if isinstance(v, type) and issubclass(v, BaseTool) and v is not BaseTool:
-            tools[k] = v
-    return tools
-
-def register_all_tools(module):
-    NAMES2TOOLS.update(extract_all_tools(module))
-
-def list_tools(with_description=False):
+def list_tools(with_description: bool = False) -> List[str] or List[Tuple[str, str]]:
     if with_description:
-        return [(name, cls.__doc__ or '') for name, cls in NAMES2TOOLS.items()]
+        return [(name, f"{name} 工具") for name in list_registered_tools()]
     else:
-        return list(NAMES2TOOLS.keys())
+        return list_registered_tools()
 
-def load_tool(tool_type: str, **kwargs) -> BaseTool:
-    if tool_type not in NAMES2TOOLS:
-        raise ValueError(f'{tool_type} is not supported. Available tools: {list(NAMES2TOOLS.keys())}')
+def search_tool(query: str, topk: int = 5) -> List[str]:
 
-    constructor = NAMES2TOOLS[tool_type]
-    tool_obj = constructor(**kwargs)
-    return tool_obj
+    all_tools = list_registered_tools()
 
-# 自动注册工具模块
-try:
-    from ..tools import base
-    register_all_tools(base)
+    matched_tools = []
+    for tool in all_tools:
+        if query.lower() in tool.lower():
+            matched_tools.append(tool)
     
-    from ..tools.segmentation import segment_anything
-    register_all_tools(segment_anything)
+    if not matched_tools:
+        matched_tools = all_tools[:topk]
     
-    from ..tools.Yolo_Detect import yolo_detect
-    register_all_tools(yolo_detect)
-    
-except ImportError as e:
-    pass
+    return matched_tools[:topk]

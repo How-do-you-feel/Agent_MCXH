@@ -1,152 +1,105 @@
-# AG-MCXH 视觉智能体框架
+# 明察芯毫——视觉智能体框架
 
-AG-MCXH 是一个视觉工具框架，允许通过大语言模型调用多种视觉检测工具对上传的图片进行检测和分析。
+<!-- <div align="center">
+  <img src="pics/architecture.png" alt="AG-MCXH Architecture" width="800"/>
+</div> -->
 
-## 安装
+AG-MCXH（中文：明察芯毫）是一个基于大语言模型的视觉智能体框架，能够根据自然语言指令自动选择并调用多种视觉工具对图像进行分析和处理。该框架支持目标检测、图像分割、姿态估计、OCR等多种视觉任务。
+
+## 功能特点
+
+- 🤖 **智能工具选择**: 基于自然语言指令自动选择最合适的视觉工具
+- 🔧 **丰富的视觉工具**: 内置多种视觉处理工具，包括目标检测、图像分割等
+- 🧠 **大模型集成**: 集成vLLM推理引擎，支持高性能推理
+- 🌐 **Web界面**: 提供友好的Web用户界面
+- 📦 **模块化设计**: 易于扩展的模型和工具注册机制
+
+## 支持的视觉工具
+
+### 目标检测
+- YOLOv5/YOLOv8: 实时目标检测工具
+
+### 图像分割
+- SegmentAnything (SAM): 通用图像分割工具
+- SegmentObject: 特定对象分割工具
+
+### 图像处理
+- OCR: 光学字符识别
+- VQA: 视觉问答
+- 人体姿态估计
+- 人脸关键点检测
+- Canny边缘检测
+- 深度图生成
+- 涂鸦草图生成
+
+## 安装指南
+
+### 环境要求
+- Python 3.8+
+- CUDA 11.8+ (用于GPU加速，可选)
+
+### 安装步骤
 
 ```bash
-cd ag_mcxh
+git clone https://github.com/How-do-you-feel/Agent_MCXH.git
+cd Agent_MCXH
 pip install -r requirements.txt
 ```
 
-## 支持的工具
+#### 下载所需模型文件（根据需要选择）：
+YOLO模型文件
+SAM模型文件
+大语言模型（如Qwen2.5系列
 
-**图像处理相关**
-- SegmentAnything - 图像分割工具
-- SegmentObject - 特定对象分割工具
-- YoloDetect - YOLO目标检测工具
-- ImageDescription: 描述输入图像。
-- OCR：从照片中识别文本。
-- VQA：根据图片回答问题。
-- OBB: 估计图像中人体的姿态或关键点，并绘制人体姿态图像
-- HumanFaceLandmark: 识别图像中人脸的关键点，并绘制带有关键点的图像。
-- ImageToCanny: 从图像中提取边缘图像。
-- ImageToDepth: 生成图像的深度图像。
-- ImageToScribble: 生成一张图像的涂鸦草图。
-- ObjectDetection: 检测图像中的所有物体。
-- TextToBbox: 检测图像中的给定对象。
-- SegmentAnything: 分割图像中的所有物体。
-- SegmentObject: 根据给定的物体名称，在图像中分割出特定的物体。
-
-
-## API说明
-### 1. 工具加载 (load_tool)
-加载指定的视觉工具
-
+## 快速开始
+### 直接调用
 ```python
 from ag_mcxh.apis import load_tool
-tool = load_tool('工具名称', 参数...)
-```
 
-#### 参数：
-- `tool_type (str)`: 工具名称
-- `**kwargs`: 工具特定参数
-#### 示例
-```python
 # 加载YOLO检测工具
 yolo_tool = load_tool('YoloDetect',
                       model_path='/path/to/yolo11n.pt',
                       device='cpu',
                       conf_threshold=0.5)
 
-# 加载分割工具
-segment_tool = load_tool('SegmentAnything',
-                         sam_model='sam_vit_h_4b8939.pth',
-                         device='cuda')
-```
-### 2. 工具列表 (list_tools)
-列出所有可用的工具
-```python
-from ag_mcxh.apis import list_tools
-
-# 获取工具列表
-tools = list_tools()
-print(tools)  
-
-# 获取工具列表及描述
-tools_with_desc = list_tools(with_description=True)
-for name, desc in tools_with_desc:
-    print(f"{name}: {desc}")
-```
-
-### 3. 工具搜索 (search_tool)
-根据查询语句搜索相关工具
-```python
-from ag_mcxh import search_tool
-
-# 搜索相关工具
-relevant_tools = search_tool("detect objects in image")
-print(relevant_tools)
-```
-
-## 工具使用方法
-### 图像输入/输出 (ImageIO)
-所有工具都使用 ImageIO 类处理图像：
-```python
+# 处理图像
 from ag_mcxh.types import ImageIO
-
 image = ImageIO('/path/to/image.jpg')
-image_array = image.to_array()
-pil_image = image.to_pil()
-```
-### YOLO检测工具
-```python
-from ag_mcxh.apis import load_tool
-from ag_mcxh.types import ImageIO
-
-yolo_tool = load_tool('YoloDetect',
-                      model_path='/path/to/yolo11n.pt',
-                      device='cpu',
-                      conf_threshold=0.5,
-                      iou_threshold=0.45,
-                      image_size=640)
-
-image = ImageIO('/path/to/image.jpg')
-
 detection_results = yolo_tool.apply(image)
-print(detection_results) 
-```
-### 分割工具
-```python
-from ag_mcxh.apis import load_tool
-from ag_mcxh.types import ImageIO
-
-segment_tool = load_tool('SegmentAnything',
-                         sam_model='sam_vit_h_4b8939.pth',
-                         device='cuda')
-
-image = ImageIO('/path/to/image.jpg')
-segmentation_result = segment_tool.apply(image)
+print(detection_results)
 ```
 
-## 使用案例
-### 基本使用案例
-```python
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+## 扩展开发
+### 注册新模型
+在`ag_mcxh/models/`目录下创建模型实现，并通过装饰器或加载器函数注册到模型注册表。
+### 添加新工具
+在`ag_mcxh/tools/`目录下创建工具实现，继承BaseTool类并通过装饰器注册。
 
-from ag_mcxh.apis import list_tools, load_tool
-from ag_mcxh.types import ImageIO
+#### 详细开发指南请参考
+- [模型注册指南](ag_mcxh/models/Readme.md)
+- [工具开发指南](Agent_MCXH/ag_mcxh/tools/Readme.md)
 
-def main():
-    print("Available tools:")
-    tools = list_tools(with_description=True)
-    for name, desc in tools:
-        print(f"  - {name}: {desc}")
-    
-    if tools:
-        yolo_tool = load_tool('YoloDetect', device='cpu')
-        image = ImageIO('/path/to/image.jpg')
-        results = yolo_tool.apply(image)
-        print("Detection results:")
-        print(results)
+### 使用实例
+查看`ag_mcxh/examples/`目录中的示例代码：
 
-if __name__ == "__main__":
-    main()
+- `example_yolo.py`: YOLO目标检测示例
+- `vision_agent_example.py`: 视觉智能体使用示例
+- `model_registration_example.py`: 模型注册示例
+
+## 项目结构
 ```
-## 注意事项
-1.使用前请确保已安装相应工具的依赖库
-2.模型文件需要单独下载并放置在指定路径
-3.GPU加速需要安装CUDA并配置相应的深度学习框架
-4.图像路径需要是可访问的本地文件路径
+Agent_MCXH/
+├── ag_mcxh/              # 核心框架代码
+│   ├── agent/            # 智能体实现
+│   ├── apis/             # API接口
+│   ├── models/           # 模型注册和管理
+│   ├── tools/            # 视觉工具实现
+│   ├── types/            # 数据类型定义
+│   ├── utils/            # 工具函数
+│   └── examples/         # 使用示例
+├── webui/                # Web界面
+├── scripts/              # 脚本工具
+└── pics/                 # 图片资源
+```
+## 贡献
+欢迎提交[Issue](https://github.com/How-do-you-feel/Agent_MCXH/issues)和[Pull Request](https://github.com/How-do-you-feel/Agent_MCXH/pulls)来改进本项目。

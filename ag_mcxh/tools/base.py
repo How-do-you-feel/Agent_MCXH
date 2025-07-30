@@ -1,46 +1,32 @@
-from abc import ABCMeta, abstractmethod
-from typing import Any, Tuple
-import copy
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional
 
-from ..meta import ToolMeta, Parameter
-
-class BaseTool(metaclass=ABCMeta):
-    def __init__(self, toolmeta=None):
-        if toolmeta is None:
-            toolmeta = ToolMeta(name=self.__class__.__name__)
-        self.toolmeta = toolmeta
+class BaseTool(ABC):
+    """工具基类"""
+    
+    def __init__(self, toolmeta: Optional[Dict[str, Any]] = None):
+        self.toolmeta = toolmeta or {}
+        self.name = self.toolmeta.get('name', self.__class__.__name__)
+        self.description = self.toolmeta.get('description', self.default_desc)
         self._is_setup = False
-
+    
     @property
-    def name(self) -> str:
-        return self.toolmeta.name
-
-    @property
-    def description(self) -> str:
-        return self.toolmeta.description or ""
-
-    @property
-    def inputs(self) -> Tuple[Parameter, ...]:
-        return self.toolmeta.inputs or ()
-
-    @property
-    def outputs(self) -> Tuple[Parameter, ...]:
-        return self.toolmeta.outputs or ()
-
+    def default_desc(self) -> str:
+        """默认工具描述"""
+        return "这是一个基础工具"
+    
     def setup(self):
-        """Initialize the tool before first use. Override this method to load models, etc."""
+        """工具初始化方法"""
         pass
-
+    
+    @abstractmethod
+    def apply(self, *args, **kwargs):
+        """工具应用方法"""
+        pass
+    
     def __call__(self, *args, **kwargs):
+        """使工具可调用"""
         if not self._is_setup:
             self.setup()
             self._is_setup = True
         return self.apply(*args, **kwargs)
-
-    @abstractmethod
-    def apply(self, *args, **kwargs):
-        """Implement the actual tool functionality here"""
-        raise NotImplementedError
-
-    def __repr__(self):
-        return f'{type(self).__name__}(toolmeta={self.toolmeta})'
