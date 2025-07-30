@@ -12,16 +12,16 @@ import json
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, 
-                       default='/home/ps/MCXH/MingChaXinHao/ag_mcxh/examples/model/yolo_detect/yolo11n.pt')
+                       default='./yolo11n.pt')
     parser.add_argument('--image_path', type=str, 
-                       default='/home/ps/MCXH/MingChaXinHao/ag_mcxh/pics/002.png')
+                       default='/home/ps/MCXH/Agent_MCXH/pics/002.png')
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--conf_threshold', type=float, default=0.5)
     parser.add_argument('--iou_threshold', type=float, default=0.45)
     parser.add_argument('--image_size', type=int, default=640)
     parser.add_argument('--classes', type=str, default='')
     parser.add_argument('--output_path', type=str, 
-                       default='/home/ps/MCXH/MingChaXinHao/ag_mcxh/pics/output/result.jpg')
+                       default='./output/result.jpg')
     return parser.parse_args()
 
 def run_yolo_detection(image_path, model_path, device, conf_threshold, iou_threshold, image_size, classes, output_path):
@@ -87,13 +87,13 @@ class YoloDetect(BaseTool):
                     'and return detection results with bounding boxes.')
     
     def __init__(self, 
-                 model_path: str = '/home/ps/MCXH/MingChaXinHao/ag_mcxh/examples/model/yolo_detect/yolo11n.pt',
+                 model_path: str = '',
                  device: str = 'cuda',
                  conf_threshold: float = 0.5,
                  iou_threshold: float = 0.45,
                  image_size: int = 640,
                  classes: str = '',
-                 output_path: str = '/home/ps/MCXH/MingChaXinHao/ag_mcxh/pics/output/result.jpg',
+                 output_path: str = '',
                  toolmeta=None):
         super().__init__(toolmeta=toolmeta)
         self.model_path = model_path
